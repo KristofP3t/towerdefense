@@ -6,7 +6,7 @@ object GameMap {
     const val CELL_SIZE = 48f
     const val GAME_WIDTH = COLS * CELL_SIZE   // 960
     const val GAME_HEIGHT = ROWS * CELL_SIZE  // 576
-    const val TOTAL_WAVES = 5
+    const val TOTAL_WAVES = 15
 
     /**
      * Path waypoints (col, row). The enemy follows straight horizontal/vertical
