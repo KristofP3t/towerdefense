@@ -25,7 +25,8 @@ if [ -z "$DEVICE" ]; then
 fi
 
 echo "📲 Installiere auf $DEVICE …"
-"$ADB" -s "$DEVICE" install -r composeApp/build/outputs/apk/debug/composeApp-debug.apk \
+APK=$(ls composeApp/build/outputs/apk/debug/TowerDefense-*-debug.apk 2>/dev/null | head -1)
+"$ADB" -s "$DEVICE" install -r "$APK" \
     && echo "✅ Erfolgreich installiert! App startet automatisch …" \
     && "$ADB" -s "$DEVICE" shell monkey -p com.example.towerdefense 1 > /dev/null 2>&1 \
     || echo "❌ Installation fehlgeschlagen"

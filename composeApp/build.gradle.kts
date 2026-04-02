@@ -76,6 +76,14 @@ android {
         versionCode = 1
         versionName = "1.0"
     }
+    applicationVariants.all {
+        val variant = this
+        variant.outputs
+            .map { it as com.android.build.gradle.internal.api.BaseVariantOutputImpl }
+            .forEach { output ->
+                output.outputFileName = "TowerDefense-${variant.versionName}-${variant.buildType.name}.apk"
+            }
+    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
