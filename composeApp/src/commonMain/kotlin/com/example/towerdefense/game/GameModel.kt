@@ -22,8 +22,29 @@ enum class TowerType(
 ) {
     RED   (damage = 55f, rangePx = 144f, fireInterval = 1.2f, cost = 75, slowDuration = 0f),
     YELLOW(damage = 20f, rangePx = 240f, fireInterval = 1.6f, cost = 50, slowDuration = 0f),
-    BLUE  (damage = 12f, rangePx = 160f, fireInterval = 2.0f, cost = 60, slowDuration = 1.0f),
+    BLUE  (damage = 12f, rangePx = 160f, fireInterval = 2.0f, cost = 60, slowDuration = 1.0f);
+
+    /** Goldkosten für das Upgrade von `currentLevel` auf `currentLevel + 1`. */
+    fun upgradeCost(currentLevel: Int): Int = when (currentLevel) {
+        1 -> cost
+        2 -> cost * 2
+        else -> Int.MAX_VALUE
+    }
+
+    fun damageAt(level: Int): Float      = damage      * (1f + (level - 1) * 0.5f)
+    fun rangeAt(level: Int): Float       = rangePx     * (1f + (level - 1) * 0.15f)
+    fun intervalAt(level: Int): Float    = fireInterval * (1f - (level - 1) * 0.10f)
 }
+
+// ── Enemy variants ────────────────────────────────────────────────────────────
+
+enum class EnemyVariant {
+    NORMAL,   // Standard
+    FAST,     // 2× Geschwindigkeit, 0.4× HP  – ab Welle 3
+    ARMORED,  // 0.6× Geschwindigkeit, 2.5× HP, 10 Schadensreduktion – ab Welle 6
+}
+
+// ── Data classes ──────────────────────────────────────────────────────────────
 
 data class Enemy(
     val id: Int,
@@ -36,12 +57,15 @@ data class Enemy(
     var reachedEnd: Boolean = false,
     var slowedUntil: Float = 0f,
     val isBoss: Boolean = false,
+    val variant: EnemyVariant = EnemyVariant.NORMAL,
+    val armor: Float = 0f,
 )
 
 data class Tower(
     val gridPos: GridPos,
     val type: TowerType,
     var cooldown: Float = 0f,
+    var level: Int = 1,         // 1 = Basis, 2 = Aufgewertet, 3 = Maximum
 )
 
 data class Projectile(
