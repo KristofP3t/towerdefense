@@ -187,9 +187,8 @@ class GameEngine(private val difficulty: Difficulty = Difficulty.NORMAL) {
                     if (nextIdx >= map.waypoints.size) {
                         if (map.hasBranch) {
                             // Gabelung erreicht → zufälligen Ast wählen
-                            e.branchIndex      = Random.nextInt(map.branchWaypoints.size)
-                            e.branchWaypointIdx = 0
-                            // Nächste Iteration läuft auf dem Ast weiter
+                            e.branchIndex       = Random.nextInt(map.branchWaypoints.size)
+                            e.branchWaypointIdx = -1  // -1: noch auf Weg zu branch[0]
                         } else {
                             e.reachedEnd = true
                             break

@@ -77,7 +77,10 @@ fun GameScreen(
             .fillMaxSize()
             .background(C_BG_UI),
     ) {
-        Hud(engine, gameSpeed) { gameSpeed = if (gameSpeed == 1f) 2f else 1f }
+        Hud(engine, gameSpeed,
+            onToggleSpeed = { gameSpeed = if (gameSpeed == 1f) 2f else 1f },
+            onExit        = { onGameEnd(engine.buildStats()) },
+        )
 
         BoxWithConstraints(
             modifier = Modifier
@@ -153,12 +156,12 @@ fun GameScreen(
 // ── HUD ────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun Hud(engine: GameEngine, gameSpeed: Float, onToggleSpeed: () -> Unit) {
+private fun Hud(engine: GameEngine, gameSpeed: Float, onToggleSpeed: () -> Unit, onExit: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(C_HUD_BG)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 8.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -179,10 +182,20 @@ private fun Hud(engine: GameEngine, gameSpeed: Float, onToggleSpeed: () -> Unit)
         ) {
             Text(
                 if (gameSpeed == 2f) "2×" else "1×",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp, fontWeight = FontWeight.Bold,
                 color = if (gameSpeed == 2f) Color.Black else Color.White,
             )
+        }
+
+        // Beenden-Button
+        Button(
+            onClick = onExit,
+            modifier = Modifier.height(34.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp),
+            shape = RoundedCornerShape(6.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7f8c8d).copy(alpha = 0.4f)),
+        ) {
+            Text("✕ Menü", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFbdc3c7))
         }
     }
 }
