@@ -7,33 +7,29 @@
 set -e
 
 DIST="composeApp/build/dist/wasmJs/productionExecutable"
+REMOTE=$(git remote get-url origin)
+TMPDIR="/tmp/gh-pages-deploy-$$"
 
 echo "📦 Baue WasmJS-Distribution …"
 ./gradlew :composeApp:wasmJsBrowserDistribution
 
-echo "🌿 Wechsle auf gh-pages-Branch …"
-git fetch origin
-if git show-ref --quiet refs/remotes/origin/gh-pages; then
-    git worktree add /tmp/gh-pages-deploy origin/gh-pages
-else
-    # Branch existiert noch nicht → leeren Branch anlegen
-    git worktree add --orphan -b gh-pages /tmp/gh-pages-deploy
-fi
+echo "📋 Dateien in temporäres Verzeichnis kopieren …"
+rm -rf "$TMPDIR"
+mkdir "$TMPDIR"
+cp -r "$DIST"/. "$TMPDIR/"
 
-echo "🗑  Alte Dateien löschen …"
-rm -rf /tmp/gh-pages-deploy/*
-
-echo "📋 Neue Dateien kopieren …"
-cp -r "$DIST"/. /tmp/gh-pages-deploy/
-
-echo "📤 Pushen …"
-cd /tmp/gh-pages-deploy
+echo "🌿 gh-pages-Branch vorbereiten …"
+cd "$TMPDIR"
+git init -q
+git checkout -q -b gh-pages
 git add -A
-git commit -m "deploy: $(date '+%Y-%m-%d %H:%M')" || echo "Keine Änderungen."
-git push origin gh-pages
+git commit -q -m "deploy: $(date '+%Y-%m-%d %H:%M')"
+
+echo "📤 Pushen nach $REMOTE …"
+git push --force "$REMOTE" gh-pages
 
 echo "🧹 Aufräumen …"
 cd -
-git worktree remove /tmp/gh-pages-deploy --force
+rm -rf "$TMPDIR"
 
 echo "✅ Fertig! App verfügbar unter: https://kristofp3t.github.io/towerdefense/"
