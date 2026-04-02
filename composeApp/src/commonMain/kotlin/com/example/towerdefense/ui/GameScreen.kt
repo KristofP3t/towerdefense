@@ -62,12 +62,14 @@ fun GameScreen(
     var selectedCell  by remember { mutableStateOf<GridPos?>(null) }
     var gameSpeed     by remember { mutableStateOf(1f) }
     var paused        by remember { mutableStateOf(false) }
+    var autoWave      by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         var lastMs = withFrameMillis { it }
         while (isActive) {
             val nowMs = withFrameMillis { it }
             if (!paused) engine.update((nowMs - lastMs) / 1000f * gameSpeed)
+            if (autoWave && !engine.waveActive && !engine.gameOver && !engine.victory) engine.startWave()
             lastMs = nowMs
             frameCount++
         }
@@ -78,10 +80,11 @@ fun GameScreen(
             .fillMaxSize()
             .background(C_BG_UI),
     ) {
-        Hud(engine, gameSpeed, paused,
-            onToggleSpeed = { gameSpeed = if (gameSpeed == 1f) 2f else 1f },
-            onTogglePause = { paused = !paused },
-            onExit        = { onGameEnd(engine.buildStats()) },
+        Hud(engine, gameSpeed, paused, autoWave,
+            onToggleSpeed    = { gameSpeed = if (gameSpeed == 1f) 2f else 1f },
+            onTogglePause    = { paused = !paused },
+            onToggleAutoWave = { autoWave = !autoWave },
+            onExit           = { onGameEnd(engine.buildStats()) },
         )
 
         BoxWithConstraints(
@@ -158,7 +161,7 @@ fun GameScreen(
 // ── HUD ────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun Hud(engine: GameEngine, gameSpeed: Float, paused: Boolean, onToggleSpeed: () -> Unit, onTogglePause: () -> Unit, onExit: () -> Unit) {
+private fun Hud(engine: GameEngine, gameSpeed: Float, paused: Boolean, autoWave: Boolean, onToggleSpeed: () -> Unit, onTogglePause: () -> Unit, onToggleAutoWave: () -> Unit, onExit: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -171,6 +174,23 @@ private fun Hud(engine: GameEngine, gameSpeed: Float, paused: Boolean, onToggleS
         HudStat("Gold",  "${engine.gold} ¢",                      Color(0xFFf1c40f))
         HudStat("Welle", "${engine.wave}/${GameMap.TOTAL_WAVES}",  Color(0xFF2ecc71))
         HudStat("Score", "${engine.score}",                        Color.White)
+
+        // Auto-Wellen-Toggle
+        Button(
+            onClick = onToggleAutoWave,
+            modifier = Modifier.height(34.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp),
+            shape = RoundedCornerShape(6.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (autoWave) Color(0xFF9b59b6).copy(alpha = 0.4f) else Color(0xFF2c3e50),
+            ),
+        ) {
+            Text(
+                "AUTO",
+                fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                color = if (autoWave) Color(0xFFbb8fce) else Color(0xFF7f8c8d),
+            )
+        }
 
         // Pause-Toggle
         Button(
