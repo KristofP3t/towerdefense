@@ -14,3 +14,5 @@ actual fun storageWrite(key: String, value: String) {
 
 actual fun storageRead(key: String): String? =
     localStorage.getItem("towerdefense_$key")
+
+actual fun playSound(id: String) { /* WasmJs: kein synthesierter Ton implementiert */ }

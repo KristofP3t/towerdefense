@@ -104,13 +104,10 @@ private fun HighscoreRow(rank: Int, entry: HighscoreEntry) {
             fontWeight = FontWeight.Bold,
             color = rankColor,
         )
-        Text(
-            "${entry.score}",
-            modifier = Modifier.weight(1f),
-            fontSize = 22.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = Color.White,
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(entry.playerName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+            Text("${entry.score} Pkt.", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFf1c40f))
+        }
         Text(
             resultLabel,
             fontSize = 13.sp,

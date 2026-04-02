@@ -4,6 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import com.example.towerdefense.game.Difficulty
 import com.example.towerdefense.game.GameMap
+import com.example.towerdefense.game.GameStats
 import com.example.towerdefense.game.HighscoreStore
 import com.example.towerdefense.game.MapDefinition
 import com.example.towerdefense.ui.*
@@ -12,6 +13,7 @@ private sealed interface Screen {
     data object MainMenu   : Screen
     data object MapSelect  : Screen
     data object Game       : Screen
+    data class  Stats(val stats: GameStats) : Screen
     data object Highscores : Screen
     data object Settings   : Screen
 }
@@ -22,7 +24,7 @@ fun App() {
     var difficulty by remember { mutableStateOf(Difficulty.NORMAL) }
 
     MaterialTheme {
-        when (screen) {
+        when (val s = screen) {
             Screen.MainMenu -> MainMenuScreen(
                 onNewGame    = { screen = Screen.MapSelect },
                 onHighscores = { screen = Screen.Highscores },
@@ -36,9 +38,13 @@ fun App() {
                 onBack = { screen = Screen.MainMenu },
             )
             Screen.Game -> GameScreen(
-                difficulty   = difficulty,
-                onBackToMenu = { score, wave, victory ->
-                    HighscoreStore.add(score, wave, victory)
+                difficulty = difficulty,
+                onGameEnd  = { stats -> screen = Screen.Stats(stats) },
+            )
+            is Screen.Stats -> StatsScreen(
+                stats      = s.stats,
+                onContinue = { playerName ->
+                    HighscoreStore.add(playerName, s.stats.score, s.stats.wave, s.stats.victory)
                     screen = Screen.MainMenu
                 },
             )

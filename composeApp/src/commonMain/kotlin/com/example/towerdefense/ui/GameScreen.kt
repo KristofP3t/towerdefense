@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
+import kotlin.math.sin
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -53,7 +54,7 @@ private val towerDark = mapOf(
 @Composable
 fun GameScreen(
     difficulty: Difficulty,
-    onBackToMenu: (score: Int, wave: Int, victory: Boolean) -> Unit,
+    onGameEnd: (com.example.towerdefense.game.GameStats) -> Unit,
 ) {
     val engine = remember { GameEngine(difficulty) }
     var frameCount    by remember { mutableStateOf(0) }
@@ -94,19 +95,30 @@ fun GameScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .pointerInput(scale, offX, offY) {
-                        detectTapGestures { tap ->
-                            val gx   = (tap.x - offX) / scale
-                            val gy   = (tap.y - offY) / scale
-                            val cell = GameMap.pixelToGrid(gx, gy)
-                            val towerAtCell = engine.towers.find { it.gridPos == cell }
-                            if (towerAtCell != null) {
-                                // Turm-Zelle angetippt → Upgrade-Panel öffnen/schließen
-                                selectedCell = if (selectedCell == cell) null else cell
-                            } else {
-                                selectedCell = null
-                                engine.tryPlaceTower(cell.col, cell.row, selectedTower)
-                            }
-                        }
+                        detectTapGestures(
+                            onTap = { tap ->
+                                val gx   = (tap.x - offX) / scale
+                                val gy   = (tap.y - offY) / scale
+                                val cell = GameMap.pixelToGrid(gx, gy)
+                                val towerAtCell = engine.towers.find { it.gridPos == cell }
+                                if (towerAtCell != null) {
+                                    selectedCell = if (selectedCell == cell) null else cell
+                                } else {
+                                    selectedCell = null
+                                    engine.tryPlaceTower(cell.col, cell.row, selectedTower)
+                                }
+                            },
+                            onLongPress = { tap ->
+                                // Touch-Optimierung: langer Druck platziert Turm (Mobile)
+                                val gx   = (tap.x - offX) / scale
+                                val gy   = (tap.y - offY) / scale
+                                val cell = GameMap.pixelToGrid(gx, gy)
+                                if (engine.towers.none { it.gridPos == cell }) {
+                                    selectedCell = null
+                                    engine.tryPlaceTower(cell.col, cell.row, selectedTower)
+                                }
+                            },
+                        )
                     },
             ) {
                 @Suppress("UNUSED_EXPRESSION") frameCount
@@ -121,11 +133,16 @@ fun GameScreen(
             }
         }
 
-        BottomBar(engine, selectedTower, selectedCell, frameCount, onBackToMenu,
+        BottomBar(engine, selectedTower, selectedCell, frameCount, onGameEnd,
             onSelectTower = { selectedTower = it; selectedCell = null },
             onUpgrade = {
                 val cell = selectedCell ?: return@BottomBar
                 engine.tryUpgradeTower(cell.col, cell.row)
+                selectedCell = null
+            },
+            onSell = {
+                val cell = selectedCell ?: return@BottomBar
+                engine.sellTower(cell.col, cell.row)
                 selectedCell = null
             },
             onDeselectCell = { selectedCell = null },
@@ -186,9 +203,10 @@ private fun BottomBar(
     selected: TowerType,
     selectedCell: GridPos?,
     @Suppress("UNUSED_PARAMETER") frameCount: Int,
-    onBackToMenu: (score: Int, wave: Int, victory: Boolean) -> Unit,
+    onGameEnd: (com.example.towerdefense.game.GameStats) -> Unit,
     onSelectTower: (TowerType) -> Unit,
     onUpgrade: () -> Unit,
+    onSell: () -> Unit,
     onDeselectCell: () -> Unit,
 ) {
     Column(
@@ -203,7 +221,7 @@ private fun BottomBar(
         if (!engine.gameOver && !engine.victory) {
             if (upgradeTower != null) {
                 // ── Upgrade-Panel ──────────────────────────────────────────
-                UpgradePanel(engine, upgradeTower, onUpgrade, onDeselectCell)
+                UpgradePanel(engine, upgradeTower, onUpgrade, onSell, onDeselectCell)
             } else {
                 // ── Turm-Auswahl ───────────────────────────────────────────
                 Row(
@@ -227,6 +245,7 @@ private fun BottomBar(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
+                                .defaultMinSize(minHeight = 52.dp)
                                 .border(
                                     width = if (isSelected) 2.dp else 0.dp,
                                     color = if (isSelected) Color.White else Color.Transparent,
@@ -237,13 +256,13 @@ private fun BottomBar(
                                     shape = RoundedCornerShape(6.dp),
                                 )
                                 .pointerInput(type) { detectTapGestures { onSelectTower(type) } }
-                                .padding(horizontal = 6.dp, vertical = 5.dp),
+                                .padding(horizontal = 4.dp, vertical = 5.dp),
                             contentAlignment = Alignment.Center,
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                                     color = if (canAfford) color else color.copy(alpha = 0.4f))
-                                Text(desc, fontSize = 9.sp, color = Color.Gray)
+                                Text(desc, fontSize = 9.sp, color = Color.Gray, maxLines = 1)
                                 Text("${type.cost} ¢", fontSize = 11.sp,
                                     color = if (canAfford) Color.White else Color(0xFFe74c3c))
                             }
@@ -266,9 +285,9 @@ private fun BottomBar(
                     Text("GAME OVER  —  Score: ${engine.score}",
                         fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFFe74c3c))
                     Button(
-                        onClick = { onBackToMenu(engine.score, engine.wave, false) },
+                        onClick = { onGameEnd(engine.buildStats()) },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFe74c3c).copy(alpha = 0.2f)),
-                    ) { Text("Hauptmenü", color = Color(0xFFe74c3c), fontWeight = FontWeight.SemiBold) }
+                    ) { Text("Statistiken →", color = Color(0xFFe74c3c), fontWeight = FontWeight.SemiBold) }
                 }
                 engine.victory -> Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -277,9 +296,9 @@ private fun BottomBar(
                     Text("SIEG!  —  Score: ${engine.score}",
                         fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2ecc71))
                     Button(
-                        onClick = { onBackToMenu(engine.score, engine.wave, true) },
+                        onClick = { onGameEnd(engine.buildStats()) },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2ecc71).copy(alpha = 0.2f)),
-                    ) { Text("Hauptmenü", color = Color(0xFF2ecc71), fontWeight = FontWeight.SemiBold) }
+                    ) { Text("Statistiken →", color = Color(0xFF2ecc71), fontWeight = FontWeight.SemiBold) }
                 }
                 engine.waveActive -> {
                     val isBossWave = engine.wave % 5 == 0
@@ -316,6 +335,7 @@ private fun UpgradePanel(
     engine: GameEngine,
     tower: com.example.towerdefense.game.Tower,
     onUpgrade: () -> Unit,
+    onSell: () -> Unit,
     onClose: () -> Unit,
 ) {
     val color      = towerColor[tower.type]!!
@@ -367,6 +387,20 @@ private fun UpgradePanel(
             }
         } else {
             Text("MAX", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFf1c40f))
+        }
+
+        // Verkaufen-Button
+        Button(
+            onClick = onSell,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFe67e22).copy(alpha = 0.25f)),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+        ) {
+            Text(
+                "Verk. ${tower.type.sellValue(tower.level)} ¢",
+                fontSize = 11.sp,
+                color = Color(0xFFe67e22),
+                fontWeight = FontWeight.SemiBold,
+            )
         }
 
         // Schließen
@@ -429,6 +463,12 @@ private fun DrawScope.drawGame(engine: GameEngine, selectedCell: GridPos?) {
         drawCircle(dark,        radius = cs / 3.5f, center = Offset(cx, cy))
         drawCircle(Color.Black, radius = cs / 3.5f, center = Offset(cx, cy), style = Stroke(1.5f))
 
+        // Mündungsblitz (4.5): leuchtet kurz nach dem Schuss
+        val justFired = tower.cooldown > tower.type.intervalAt(tower.level) * 0.85f
+        if (justFired) {
+            drawCircle(Color.White.copy(alpha = 0.6f), radius = cs / 5f, center = Offset(cx, cy))
+        }
+
         // Upgrade-Stufen-Punkte
         if (tower.level > 1) {
             val dotSpacing = 6f
@@ -439,10 +479,11 @@ private fun DrawScope.drawGame(engine: GameEngine, selectedCell: GridPos?) {
         }
     }
 
-    // 7. Feinde
+    // 7. Feinde (mit Bobbing-Animation 4.5)
     for (enemy in engine.enemies) {
         val ex = enemy.position.x
-        val ey = enemy.position.y
+        val bobOffset = sin(engine.gameTime * 4f + enemy.id * 0.7f) * 2f
+        val ey = enemy.position.y + bobOffset
         val (r, color, border) = when {
             enemy.isBoss -> Triple(20f, Color(0xFF8e44ad), Color(0xFF6c3483))
             enemy.variant == EnemyVariant.FAST    -> Triple(10f, Color(0xFFe67e22), Color(0xFFd35400))
@@ -481,5 +522,17 @@ private fun DrawScope.drawGame(engine: GameEngine, selectedCell: GridPos?) {
     for (proj in engine.projectiles) {
         val projColor = if (proj.slowDuration > 0f) Color(0xFF3498db) else C_PROJ
         drawCircle(projColor, radius = 5f, center = Offset(proj.position.x, proj.position.y))
+    }
+
+    // 9. Partikel (4.2)
+    for (p in engine.particles) {
+        val alpha = (p.life / p.maxLife).coerceIn(0f, 1f)
+        val baseColor = when (p.type) {
+            ParticleType.NORMAL  -> Color(0xFFf1c40f)
+            ParticleType.BOSS    -> Color(0xFF8e44ad)
+            ParticleType.ARMORED -> Color(0xFFbdc3c7)
+        }
+        drawCircle(baseColor.copy(alpha = alpha), radius = p.radius * alpha,
+            center = Offset(p.position.x, p.position.y))
     }
 }

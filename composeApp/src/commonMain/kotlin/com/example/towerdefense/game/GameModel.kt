@@ -31,10 +31,30 @@ enum class TowerType(
         else -> Int.MAX_VALUE
     }
 
-    fun damageAt(level: Int): Float      = damage      * (1f + (level - 1) * 0.5f)
-    fun rangeAt(level: Int): Float       = rangePx     * (1f + (level - 1) * 0.15f)
+    fun damageAt(level: Int): Float      = damage       * (1f + (level - 1) * 0.5f)
+    fun rangeAt(level: Int): Float       = rangePx      * (1f + (level - 1) * 0.15f)
     fun intervalAt(level: Int): Float    = fireInterval * (1f - (level - 1) * 0.10f)
+
+    /** Verkaufspreis = 50 % des gesamten investierten Golds. */
+    fun sellValue(level: Int): Int {
+        var total = cost
+        for (l in 1 until level) total += upgradeCost(l)
+        return total / 2
+    }
 }
+
+// ── Particles ─────────────────────────────────────────────────────────────────
+
+enum class ParticleType { NORMAL, BOSS, ARMORED }
+
+data class Particle(
+    var position: Vec2,
+    var velocity: Vec2,
+    var life: Float,
+    val maxLife: Float = 0.5f,
+    val type: ParticleType = ParticleType.NORMAL,
+    val radius: Float = 4f,
+)
 
 // ── Enemy variants ────────────────────────────────────────────────────────────
 
@@ -59,6 +79,28 @@ data class Enemy(
     val isBoss: Boolean = false,
     val variant: EnemyVariant = EnemyVariant.NORMAL,
     val armor: Float = 0f,
+    var branchIndex: Int = -1,       // -1 = noch auf Hauptpfad
+    var branchWaypointIdx: Int = 0,  // Fortschritt auf dem gewählten Ast
+) {
+    /** Einheitliche Fortschrittsmetrik für Turm-Targeting. */
+    val progressMetric: Int get() =
+        if (branchIndex >= 0) waypointIndex * 1000 + 500 + branchWaypointIdx
+        else waypointIndex * 1000
+}
+
+// ── Spielstatistiken ──────────────────────────────────────────────────────────
+
+data class GameStats(
+    val score: Int,
+    val wave: Int,
+    val totalWaves: Int,
+    val victory: Boolean,
+    val towersBuilt: Int,
+    val enemiesKilled: Int,
+    val bossesKilled: Int,
+    val shotsFired: Int,
+    val shotsHit: Int,
+    val goldEarned: Int,
 )
 
 data class Tower(

@@ -16,3 +16,5 @@ actual fun storageWrite(key: String, value: String) {
 
 actual fun storageRead(key: String): String? =
     NSUserDefaults.standardUserDefaults.stringForKey("towerdefense_$key")
+
+actual fun playSound(id: String) { /* iOS: AudioToolbox-Integration noch ausstehend */ }
