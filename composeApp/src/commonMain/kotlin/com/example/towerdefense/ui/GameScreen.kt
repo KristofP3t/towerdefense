@@ -61,12 +61,13 @@ fun GameScreen(
     var selectedTower by remember { mutableStateOf(TowerType.RED) }
     var selectedCell  by remember { mutableStateOf<GridPos?>(null) }
     var gameSpeed     by remember { mutableStateOf(1f) }
+    var paused        by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         var lastMs = withFrameMillis { it }
         while (isActive) {
             val nowMs = withFrameMillis { it }
-            engine.update((nowMs - lastMs) / 1000f * gameSpeed)
+            if (!paused) engine.update((nowMs - lastMs) / 1000f * gameSpeed)
             lastMs = nowMs
             frameCount++
         }
@@ -77,8 +78,9 @@ fun GameScreen(
             .fillMaxSize()
             .background(C_BG_UI),
     ) {
-        Hud(engine, gameSpeed,
+        Hud(engine, gameSpeed, paused,
             onToggleSpeed = { gameSpeed = if (gameSpeed == 1f) 2f else 1f },
+            onTogglePause = { paused = !paused },
             onExit        = { onGameEnd(engine.buildStats()) },
         )
 
@@ -156,7 +158,7 @@ fun GameScreen(
 // ── HUD ────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun Hud(engine: GameEngine, gameSpeed: Float, onToggleSpeed: () -> Unit, onExit: () -> Unit) {
+private fun Hud(engine: GameEngine, gameSpeed: Float, paused: Boolean, onToggleSpeed: () -> Unit, onTogglePause: () -> Unit, onExit: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -169,6 +171,23 @@ private fun Hud(engine: GameEngine, gameSpeed: Float, onToggleSpeed: () -> Unit,
         HudStat("Gold",  "${engine.gold} ¢",                      Color(0xFFf1c40f))
         HudStat("Welle", "${engine.wave}/${GameMap.TOTAL_WAVES}",  Color(0xFF2ecc71))
         HudStat("Score", "${engine.score}",                        Color.White)
+
+        // Pause-Toggle
+        Button(
+            onClick = onTogglePause,
+            modifier = Modifier.height(34.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp),
+            shape = RoundedCornerShape(6.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (paused) Color(0xFF2ecc71).copy(alpha = 0.25f) else Color(0xFF2c3e50),
+            ),
+        ) {
+            Text(
+                if (paused) "▶" else "⏸",
+                fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                color = if (paused) Color(0xFF2ecc71) else Color.White,
+            )
+        }
 
         // Geschwindigkeits-Toggle
         Button(
