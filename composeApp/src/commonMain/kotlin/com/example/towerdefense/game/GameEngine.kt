@@ -4,38 +4,39 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlin.math.min
+import kotlin.random.Random
 
-class GameEngine {
+class GameEngine(private val difficulty: Difficulty = Difficulty.NORMAL) {
 
     // ── State ──────────────────────────────────────────────────────────────
     val enemies     = mutableListOf<Enemy>()
     val towers      = mutableListOf<Tower>()
     val projectiles = mutableListOf<Projectile>()
 
-    var lives      by mutableStateOf(20)
-    var gold       by mutableStateOf(150)
+    var lives      by mutableStateOf(difficulty.startLives)
+    var gold       by mutableStateOf(difficulty.startGold)
     var wave       by mutableStateOf(0)
     var score      by mutableStateOf(0)
     var gameOver   by mutableStateOf(false)
     var victory    by mutableStateOf(false)
     var waveActive by mutableStateOf(false)
 
-    var gameTime = 0f   // total elapsed time in seconds (plain var, canvas reads it each frame)
+    var gameTime = 0f
 
-    private var toSpawn           = 0
-    private var spawnTimer        = 0f
-    private var nextEnemyId       = 0
-    private var bossSpawnPending  = false
+    private var toSpawn          = 0
+    private var spawnTimer       = 0f
+    private var nextEnemyId      = 0
+    private var bossSpawnPending = false
 
     // ── Public API ─────────────────────────────────────────────────────────
 
     fun startWave() {
         if (waveActive || wave >= GameMap.TOTAL_WAVES || gameOver || victory) return
         wave++
-        toSpawn           = 4 + wave * 2
-        bossSpawnPending  = (wave % 5 == 0)
-        waveActive        = true
-        spawnTimer        = 0f
+        toSpawn          = 4 + wave * 2
+        bossSpawnPending = (wave % 5 == 0)
+        waveActive       = true
+        spawnTimer       = 0f
     }
 
     fun tryPlaceTower(col: Int, row: Int, type: TowerType): Boolean {
@@ -45,6 +46,17 @@ class GameEngine {
         if (gold < type.cost) return false
         towers += Tower(gridPos = pos, type = type)
         gold -= type.cost
+        return true
+    }
+
+    /** Upgrades den Turm an Position (col, row) um eine Stufe. Gibt false zurück wenn nicht möglich. */
+    fun tryUpgradeTower(col: Int, row: Int): Boolean {
+        val tower = towers.find { it.gridPos == GridPos(col, row) } ?: return false
+        if (tower.level >= 3) return false
+        val cost = tower.type.upgradeCost(tower.level)
+        if (gold < cost) return false
+        gold -= cost
+        tower.level++
         return true
     }
 
@@ -67,31 +79,51 @@ class GameEngine {
         spawnTimer -= dt
         if (spawnTimer > 0f) return
 
-        val start    = GameMap.cellCenter(GameMap.waypoints.first())
-        val isBoss   = bossSpawnPending
+        val start  = GameMap.cellCenter(GameMap.waypoints.first())
+        val isBoss = bossSpawnPending
         if (isBoss) bossSpawnPending = false
 
         enemies += if (isBoss) {
             Enemy(
                 id        = nextEnemyId++,
                 position  = start,
-                health    = wave * 120f,
-                maxHealth = wave * 120f,
+                health    = wave * 120f * difficulty.enemyHealthMult,
+                maxHealth = wave * 120f * difficulty.enemyHealthMult,
                 baseSpeed = 22f,
                 isBoss    = true,
             )
         } else {
+            val variant = pickVariant()
+            val hpBase  = (25f + wave * 20f) * difficulty.enemyHealthMult
             Enemy(
                 id        = nextEnemyId++,
                 position  = start,
-                health    = 25f + wave * 20f,
-                maxHealth = 25f + wave * 20f,
-                baseSpeed = 35f + wave * 5f,
+                health    = hpBase  * variant.healthMult,
+                maxHealth = hpBase  * variant.healthMult,
+                baseSpeed = (35f + wave * 5f) * variant.speedMult,
+                variant   = variant.type,
+                armor     = variant.armor,
             )
         }
 
         toSpawn--
         spawnTimer = if (isBoss) 0.3f else 1.0f
+    }
+
+    private data class VariantProps(
+        val type: EnemyVariant,
+        val healthMult: Float,
+        val speedMult: Float,
+        val armor: Float,
+    )
+
+    private fun pickVariant(): VariantProps {
+        val roll = Random.nextFloat()
+        return when {
+            wave >= 6 && roll < 0.25f -> VariantProps(EnemyVariant.ARMORED, 2.5f, 0.6f, 10f)
+            wave >= 3 && roll < 0.45f -> VariantProps(EnemyVariant.FAST,    0.4f, 2.0f, 0f)
+            else                      -> VariantProps(EnemyVariant.NORMAL,   1.0f, 1.0f, 0f)
+        }
     }
 
     private fun moveEnemies(dt: Float) {
@@ -122,30 +154,31 @@ class GameEngine {
             t.cooldown -= dt
             if (t.cooldown > 0f) continue
             val center = GameMap.cellCenter(t.gridPos)
+            val range  = t.type.rangeAt(t.level)
             val target = enemies
-                .filter { it.alive && !it.reachedEnd && center.distanceTo(it.position) <= t.type.rangePx }
+                .filter { it.alive && !it.reachedEnd && center.distanceTo(it.position) <= range }
                 .maxByOrNull { it.waypointIndex }
                 ?: continue
             projectiles += Projectile(
                 position     = center,
                 targetId     = target.id,
-                damage       = t.type.damage,
+                damage       = t.type.damageAt(t.level),
                 slowDuration = t.type.slowDuration,
             )
-            t.cooldown = t.type.fireInterval
+            t.cooldown = t.type.intervalAt(t.level)
         }
     }
 
     private fun moveProjectiles(dt: Float) {
         for (p in projectiles) {
             if (!p.alive) continue
-            val target = enemies.find { it.id == p.targetId && it.alive }
-            if (target == null) { p.alive = false; continue }
+            val target = enemies.find { it.id == p.targetId && it.alive } ?: run { p.alive = false; continue }
             val diff = target.position - p.position
             val dist = diff.length()
             val move = p.speed * dt
             if (move >= dist) {
-                target.health -= p.damage
+                val effectiveDamage = (p.damage - target.armor).coerceAtLeast(1f)
+                target.health -= effectiveDamage
                 if (p.slowDuration > 0f) {
                     target.slowedUntil = maxOf(target.slowedUntil, gameTime + p.slowDuration)
                 }

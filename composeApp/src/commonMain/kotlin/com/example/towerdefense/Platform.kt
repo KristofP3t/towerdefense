@@ -5,3 +5,6 @@ interface Platform {
 }
 
 expect fun getPlatform(): Platform
+
+expect fun storageWrite(key: String, value: String)
+expect fun storageRead(key: String): String?
